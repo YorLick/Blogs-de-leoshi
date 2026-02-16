@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leoshi net</title>
+    <link rel="stylesheet" href="css/apps.css">
+    <!-- Icono de la pestaña (Emoji como favicon) - Recordatorio Leoshi: Cambiar por logo real luego -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦁</text></svg>">
+</head>
+    
+<body>
+<nav>
+    <ul class="main-nav">
+        <li><a href="#inicio">Inicio</a></li>
+        <li><a href="#" id="nav-create" class="hidden">Crear Post</a></li>
+        <!-- AQUÍ BUSCAMOS A LA GENTE (Recordatorio Leoshi: Mejorar el filtro después) -->
+        <li class="search-container">
+            <input type="text" id="search-input" placeholder="Buscar usuario o post...">
+        </li>
+        <!-- Botón para abrir los mensajes -->
+        <li><button id="btn-nav-chat" title="Mensajes">💬</button></li>
+        <li><button id="btn-theme-toggle">🌙</button></li>
+    </ul>
+    <ul class="user-nav">
+        <li id="auth-links">
+            <a href="#" class="btn-nav" id="btn-login">Iniciar Sesión</a>
+            <a href="#" class="btn-nav" id="btn-register" style="background:var(--secondary); margin-left:10px;">Registrarse</a>
+        </li>
+        <li id="user-info" class="hidden">
+            <img id="nav-user-avatar" src="" class="user-avatar-small hidden" alt="Avatar">
+            <span style="margin-right:10px;"><b id="username-display">User</b></span>
+            <a href="#" id="btn-edit-profile" style="margin-right:10px; font-size:0.9rem;">Editar Perfil</a>
+            <a href="#" id="btn-logout" style="color: #e74c3c;">Salir</a>
+        </li>
+    </ul>
+</nav>
+
+<main class="content">
+    <div class="header-title-area">
+        <h1 class="main-title" style="margin-bottom:0; border-bottom:none;">Blog de Leoshi</h1>
+        <!-- Botón principal para crear notas (Recordatorio Leoshi: Hacerlo brillar si no hay posts) -->
+        <button id="fab-create" class="hidden" title="Crear Nuevo Artículo">Crear Nota +</button>
+    </div>
+    
+    <div id="posts-container">
+        <!-- AQUÍ SE CARGAN LAS NOTAS AUTOMÁTICAMENTE CON JS -->
+    </div>
+</main>
+
+<!-- PANTALLA DE CHAT (Estilo App de Mensajería) -->
+<div id="chat-view" class="chat-view-overlay hidden">
+    <div class="chat-container">
+        <div class="chat-header">
+            <span>Mensajes Globales</span>
+            <button id="btn-close-chat" style="background:none; border:none; color:white; cursor:pointer;">🏠 Inicio</button>
+        </div>
+        
+        <div class="chat-body" id="chat-messages-area">
+            <!-- Aquí aparecen los mensajes -->
+            <div style="text-align:center; color:#777; font-size:0.8rem; margin-top:20px;">Bienvenido al chat de la comunidad</div>
+        </div>
+        
+        <!-- Panel de Emojis (Recordatorio Leoshi: Agregar más packs de stickers) -->
+        <div id="sticker-picker" class="sticker-picker hidden">
+            <!-- Emojis simulados como descarga -->
+            <span class="sticker-item" onclick="insertEmoji('😀')">😀</span>
+            <span class="sticker-item" onclick="insertEmoji('😂')">😂</span>
+            <span class="sticker-item" onclick="insertEmoji('😍')">😍</span>
+            <span class="sticker-item" onclick="insertEmoji('😎')">😎</span>
+            <span class="sticker-item" onclick="insertEmoji('😭')">😭</span>
+            <span class="sticker-item" onclick="insertEmoji('😡')">😡</span>
+            <span class="sticker-item" onclick="insertEmoji('👍')">👍</span>
+            <span class="sticker-item" onclick="insertEmoji('🎉')">🎉</span>
+        </div>
+
+        <div class="chat-footer">
+            <div class="chat-input-row">
+                <button class="btn-chat-action" id="btn-toggle-stickers" title="Emojis">☺</button>
+                <!-- Botón para subir Sticker propio desde el PC -->
+                <label for="input-upload-sticker" class="btn-chat-action" title="Subir Sticker" style="cursor:pointer;">➕</label>
+                <input type="file" id="input-upload-sticker" accept="image/*" class="hidden">
+                
+                <input type="text" id="chat-input-text" class="chat-input" placeholder="Escribe un mensaje...">
+                <button class="btn-chat-action" id="btn-send-chat" style="color:#3498db;">➤</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- VENTANA: PERFIL DE OTRO USUARIO -->
+<div id="modal-user-profile" class="modal-overlay">
+    <div class="modal-content" style="text-align:center;">
+        <span class="close-modal">&times;</span>
+        <img id="profile-view-avatar" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; margin-bottom:15px;">
+        <h2 id="profile-view-name">Nombre</h2>
+        <p style="color:#777;">Usuario de Leoshi Net</p>
+        <div style="margin-top:20px;">
+            <button class="btn-submit" style="background:#2ecc71;">Añadir a Amigos</button>
+        </div>
+    </div>
+</div>
+
+<!-- VENTANA: COMPARTIR (Redes Sociales y QR) -->
+<div id="modal-share" class="modal-overlay">
+    <div class="modal-content" style="max-width: 400px;">
+        <span class="close-modal">&times;</span>
+        <h2>Compartir Blog</h2>
+        <div class="share-grid">
+            <a href="#" id="share-fb" target="_blank" class="share-btn share-fb">Compartir en Facebook</a>
+            <a href="#" id="share-wa" target="_blank" class="share-btn share-wa">Enviar por WhatsApp</a>
+            <a href="https://instagram.com" target="_blank" class="share-btn share-ig">Ir a Instagram</a>
+        </div>
+        <div class="qr-container">
+            <p>Tu QR de Perfil</p>
+            <!-- Generador de QR automático -->
+            <img id="share-qr-img" src="" class="qr-img" alt="Cargando QR...">
+            <p style="font-size:0.8rem; color:#777; margin-top:5px;">Escanea para ver el perfil de <span id="qr-username"></span></p>
+        </div>
+    </div>
+</div>
+
+<!-- VENTANA: INICIAR SESIÓN -->
+<div id="modal-login" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>Iniciar Sesión</h2>
+        <form id="form-login">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="login-email" required placeholder="ejemplo@correo.com">
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="login-password" required>
+            </div>
+            <a href="#" id="link-recover" class="link-recover">¿Olvidaste tu contraseña?</a>
+            <button type="submit" class="btn-submit">Entrar</button>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA: REGISTRO NUEVO USUARIO -->
+<div id="modal-register" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>Registrarse</h2>
+        <form id="form-register">
+            <div class="form-group">
+                <label>Nombre de Usuario</label>
+                <input type="text" id="reg-name" required>
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="reg-email" required>
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="reg-password" required>
+            </div>
+            <button type="submit" class="btn-submit">Crear Cuenta</button>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA: CREAR NUEVA NOTA -->
+<div id="modal-create" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>Nuevo Artículo</h2>
+        <form id="form-create-post">
+            <div class="form-group">
+                <label>Título</label>
+                <input type="text" id="post-title" required>
+            </div>
+            <div class="form-group">
+                <label>Imagen o Video</label>
+                <!-- Input para subir archivo localmente -->
+                <input type="file" id="post-image-file" accept="image/*, video/*">
+                <small>O selecciona una de la carpeta img (simulado)</small>
+            </div>
+            <div class="form-group">
+                <label>Contenido</label>
+                <textarea id="post-content" required placeholder="Escribe tu historia aquí..."></textarea>
+            </div>
+            <button type="submit" class="btn-submit">Publicar</button>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA: EDITAR NOTA EXISTENTE -->
+<div id="modal-edit-post" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>Editar Nota</h2>
+        <form id="form-edit-post">
+            <input type="hidden" id="edit-post-id">
+            <div class="form-group">
+                <label>Título</label>
+                <input type="text" id="edit-post-title" required>
+            </div>
+            <div class="form-group">
+                <label>Imagen o Video (Opcional - Dejar vacío para mantener el actual)</label>
+                <input type="file" id="edit-post-image-file" accept="image/*, video/*">
+            </div>
+            <div class="form-group">
+                <label>Contenido</label>
+                <textarea id="edit-post-content" required></textarea>
+            </div>
+            <button type="submit" class="btn-submit">Guardar Cambios</button>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA: RECUPERAR CONTRASEÑA -->
+<div id="modal-recover" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>Recuperar Contraseña</h2>
+        <p style="margin-bottom:15px; color:#666; font-size:0.9rem;">Ingresa tu correo registrado para establecer una nueva contraseña.</p>
+        <form id="form-recover">
+            <div class="form-group">
+                <label>Email Registrado</label>
+                <input type="email" id="recover-email" required>
+            </div>
+            <div class="form-group">
+                <label>Nueva Contraseña</label>
+                <input type="password" id="recover-new-password" required>
+            </div>
+            <button type="submit" class="btn-submit">Cambiar Contraseña</button>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA: EDITAR MI PERFIL (Con editor de fotos) -->
+<div id="modal-edit-profile" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>Editar Perfil</h2>
+        <form id="form-edit-profile">
+            <div class="form-group">
+                <label>Foto de Perfil (Selecciona para editar)</label>
+                <input type="file" id="edit-avatar-file" accept="image/*">
+            </div>
+            
+            <!-- Área de Edición de Foto (Oculta hasta que se selecciona imagen) -->
+            <div id="cropper-wrapper" class="cropper-wrapper hidden">
+                <div class="cropper-container" id="cropper-container">
+                    <img id="cropper-img" class="cropper-img" src="" alt="Imagen a recortar">
+                </div>
+                <div class="cropper-controls">
+                    <label style="font-size:0.8rem;">Zoom:</label>
+                    <input type="range" id="cropper-zoom" min="0.5" max="3" step="0.1" value="1" class="cropper-slider">
+                </div>
+                <div class="cropper-controls">
+                    <label style="font-size:0.8rem;">Rotar:</label>
+                    <input type="range" id="cropper-rotate" min="-180" max="180" step="1" value="0" class="cropper-slider">
+                </div>
+                <small style="color:#ccc; margin-top:5px;">Arrastra para mover, usa las barras para ajustar</small>
+            </div>
+            <div class="form-group">
+                <label>Nombre de Usuario</label>
+                <input type="text" id="edit-name" required>
+            </div>
+            <div class="form-group">
+                <label>Contraseña (Para confirmar cambios)</label>
+                <input type="password" id="edit-password-confirm" required>
+            </div>
+            <button type="submit" class="btn-submit">Guardar Cambios</button>
+        </form>
+    </div>
+</div>
+
+<!-- VENTANA: LEER NOTA COMPLETA -->
+<div id="modal-view-post" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <div id="view-post-layout">
+            <div id="view-post-body">
+                <!-- Aquí JS pone el contenido de la nota -->
+            </div>
+            <div class="comments-section">
+                <h3>Comentarios</h3>
+                <div id="comments-list" class="comments-list">
+                    <!-- Aquí JS pone los comentarios -->
+                </div>
+                <form id="form-comment">
+                    <textarea id="comment-text" placeholder="Escribe un comentario..." style="width:100%; height:60px; margin-bottom:10px;" required></textarea>
+                    <button type="submit" class="btn-submit" style="padding: 5px;">Comentar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div class="footer-text">
+        <p>&copy; 2026 Leoshi. Todos los derechos preservados.</p>
+    </div>
+    <div class="social-links">
+        <a href="#facebook">Facebook</a>
+        <a href="#twitter">Twitter</a>
+        <a href="#instagram">Instagram</a>
+        <a href="#linkedin">LinkedIn</a>
+    </div>
+</footer>
+    <script src="js/main.js" defer></script>
+
+</body>
+</html>
