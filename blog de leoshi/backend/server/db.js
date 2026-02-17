@@ -1,14 +1,14 @@
 const mysql = require('mysql2/promise');
+require('dotenv').config(); // Cargar variables de entorno
 
 // ¡IMPORTANTE! En un proyecto real, estos datos deberían estar en variables de entorno (.env) y no en el código.
 const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    // 👇 ¡RECUERDA CAMBIAR ESTO por la contraseña que creaste durante la instalación de MySQL!
-    password: 'TU_CONTRASENA_DE_MYSQL', 
-    database: 'mi_sitio_web_db',
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || 'TU_CONTRASENA_DE_MYSQL', 
+    database: process.env.DB_NAME || 'mi_sitio_web_db',
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: 50,
     queueLimit: 0
 };
 

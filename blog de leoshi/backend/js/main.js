@@ -35,10 +35,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('leoshi_posts', JSON.stringify(posts));
             }
         },
+        incrementPostViews: (postId) => {
+            let posts = DB.getPosts();
+            const index = posts.findIndex(p => p.id === postId);
+            if (index !== -1) {
+                if (!posts[index].views) posts[index].views = 0;
+                posts[index].views++;
+                localStorage.setItem('leoshi_posts', JSON.stringify(posts));
+            }
+        },
         getComments: (postId) => JSON.parse(localStorage.getItem(`leoshi_comments_${postId}`) || '[]'),
         saveComment: (postId, comment) => {
             const comments = DB.getComments(postId);
+            // Asegurar estructura de votos
+            if (!comment.likes) comment.likes = [];
+            if (!comment.dislikes) comment.dislikes = [];
             comments.push(comment);
+            localStorage.setItem(`leoshi_comments_${postId}`, JSON.stringify(comments));
+        },
+        voteComment: (postId, commentIndex, voteType, username) => {
+            const comments = DB.getComments(postId);
+            const comment = comments[commentIndex];
+            if (!comment) return;
+
+            // Inicializar si no existen (compatibilidad con comentarios viejos)
+            if (!comment.likes) comment.likes = [];
+            if (!comment.dislikes) comment.dislikes = [];
+
+            const likeIndex = comment.likes.indexOf(username);
+            const dislikeIndex = comment.dislikes.indexOf(username);
+
+            if (voteType === 'like') {
+                if (likeIndex !== -1) {
+                    comment.likes.splice(likeIndex, 1); // Quitar like si ya lo tenía
+                } else {
+                    comment.likes.push(username); // Dar like
+                    if (dislikeIndex !== -1) comment.dislikes.splice(dislikeIndex, 1); // Quitar dislike si existía
+                }
+            } else if (voteType === 'dislike') {
+                if (dislikeIndex !== -1) {
+                    comment.dislikes.splice(dislikeIndex, 1); // Quitar dislike si ya lo tenía
+                } else {
+                    comment.dislikes.push(username); // Dar dislike
+                    if (likeIndex !== -1) comment.likes.splice(likeIndex, 1); // Quitar like si existía
+                }
+            }
+            
             localStorage.setItem(`leoshi_comments_${postId}`, JSON.stringify(comments));
         },
         getChatMessages: () => JSON.parse(localStorage.getItem('leoshi_chat_msgs') || '[]'),
@@ -60,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const userAvatarNav = document.getElementById('nav-user-avatar');
     const fabCreate = document.getElementById('fab-create');
     const searchInput = document.getElementById('search-input');
-    const btnThemeToggle = document.getElementById('btn-theme-toggle');
     const btnNavChat = document.getElementById('btn-nav-chat');
     const chatView = document.getElementById('chat-view');
     const btnCloseChat = document.getElementById('btn-close-chat');
@@ -101,13 +142,48 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('modal-overlay')) closeModal(e.target);
     });
 
+    let typingTimer; // Variable para controlar el efecto y evitar superposiciones
+
     // --- CONTROL DE SESIÓN (SABER SI ESTÁS LOGUEADO) ---
     function checkSession() {
         const user = DB.getSession();
+        
+        // Aplicar tema visual (Plantilla)
+        document.body.className = ''; // Limpiar clases anteriores
+        if (user && user.theme) {
+            document.body.classList.add('theme-' + user.theme);
+        }
+
+        // Actualizar subtítulo del tipo de blog
+        const blogTypeSubtitle = document.getElementById('blog-type-subtitle');
+        if (blogTypeSubtitle) {
+            blogTypeSubtitle.textContent = (user && user.blogType) ? user.blogType : "Blog Personal";
+        }
+        
+        // Actualizar el título principal con efecto de escritura (Typing Effect)
+        const mainTitle = document.querySelector('.main-title');
+        if (mainTitle) {
+            const text = (user && user.blogTitle) ? user.blogTitle : "Leoshi Net";
+            
+            if (typingTimer) clearTimeout(typingTimer); // Detener animación anterior si existe
+            mainTitle.innerText = ''; // Limpiar texto
+            
+            let i = 0;
+            function type() {
+                if (i < text.length) {
+                    mainTitle.innerText += text.charAt(i);
+                    i++;
+                    typingTimer = setTimeout(type, 100); // Velocidad: 100ms por letra
+                }
+            }
+            type();
+        }
+
         if (user) {
             authLinks.classList.add('hidden');
             userInfo.classList.remove('hidden');
             fabCreate.classList.remove('hidden');
+            fabCreate.textContent = user.fabText || 'Crear Nota +';
             usernameDisplay.textContent = user.name;
             if (user.avatar) {
                 userAvatarNav.src = user.avatar;
@@ -142,8 +218,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('reg-password').value;
 
         // Límite de 5 usuarios (Recordatorio Leoshi: Quitar esto cuando paguemos el servidor)
-        if (DB.getUsers().length >= 5) {
-            alert('Lo sentimos, se ha alcanzado el límite máximo de 5 usuarios registrados en esta demo.');
+        if (DB.getUsers().length >= 50) {
+            alert('Lo sentimos, se ha alcanzado el límite máximo de 50 usuarios registrados en esta demo.');
             return;
         }
 
@@ -209,6 +285,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const user = DB.getSession();
         if(!user) return;
         document.getElementById('edit-name').value = user.name;
+        document.getElementById('edit-blog-title').value = user.blogTitle || '';
+        document.getElementById('edit-blog-type').value = user.blogType || 'Blog Personal';
+        document.getElementById('edit-theme').value = user.theme || 'default';
+        document.getElementById('edit-fab-text').value = user.fabText || '';
+        const skillsInput = document.getElementById('edit-skills');
+        skillsInput.value = user.skills || '';
+        
+        // Cargar el avatar actual en la vista previa circular
+        document.getElementById('edit-profile-avatar-preview').src = user.avatar || 'https://via.placeholder.com/100?text=U';
+        
+        // --- SKILLS INSTALLER (Generar sugerencias) ---
+        const installerArea = document.getElementById('skills-installer-area');
+        if (installerArea) {
+            const popularSkills = ['HTML', 'CSS', 'JavaScript', 'Node.js', 'MySQL', 'React', 'Python', 'Git', 'Diseño UI', 'Figma', 'DevOps', 'PHP', 'Java'];
+            installerArea.innerHTML = '<small style="display:block; width:100%; margin-bottom:5px; color:#777;">Instalador rápido (Click para añadir):</small>';
+            
+            popularSkills.forEach(skill => {
+                const chip = document.createElement('span');
+                chip.className = 'skill-chip-install';
+                chip.textContent = '+ ' + skill;
+                chip.onclick = () => {
+                    const current = skillsInput.value ? skillsInput.value.split(',').map(s => s.trim()) : [];
+                    if (!current.includes(skill)) {
+                        current.push(skill);
+                        skillsInput.value = current.join(', ');
+                    }
+                };
+                installerArea.appendChild(chip);
+            });
+        }
+
         openModal(modalEditProfile);
     }
 
@@ -225,6 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const reader = new FileReader();
             reader.onload = (evt) => {
                 cropperImg.src = evt.target.result;
+                // Actualizar también la vista previa circular al seleccionar una nueva imagen
+                document.getElementById('edit-profile-avatar-preview').src = evt.target.result;
                 cropperWrapper.classList.remove('hidden');
                 // Reset state
                 cropperState = { x: 0, y: 0, scale: 1, rotation: 0, isDragging: false };
@@ -271,16 +380,20 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const user = DB.getSession();
         const newName = document.getElementById('edit-name').value;
-        const confirmPass = document.getElementById('edit-password-confirm').value;
+        const newBlogTitle = document.getElementById('edit-blog-title').value;
+        const newBlogType = document.getElementById('edit-blog-type').value;
+        const newTheme = document.getElementById('edit-theme').value;
+        const newFabText = document.getElementById('edit-fab-text').value;
+        const newSkills = document.getElementById('edit-skills').value;
         const fileInput = document.getElementById('edit-avatar-file');
-
-        if (user.password !== confirmPass) {
-            alert('Contraseña incorrecta. No se guardaron los cambios.');
-            return;
-        }
 
         const saveChanges = (avatarBase64) => {
             user.name = newName;
+            user.blogTitle = newBlogTitle; // Guardamos el título personalizado
+            user.blogType = newBlogType; // Guardamos el tipo de blog
+            user.theme = newTheme; // Guardamos el tema seleccionado
+            user.fabText = newFabText; // Guardamos el texto del botón
+            user.skills = newSkills; // Guardamos las habilidades
             if (avatarBase64) user.avatar = avatarBase64;
             
             DB.updateUser(user);
@@ -301,16 +414,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Dibujar imagen transformada
             const img = cropperImg;
             
-            // Aplicar rotación al contexto del canvas antes de dibujar
-            // (Nota: La rotación en canvas es compleja con traslaciones, esta es una aproximación simple)
-            // Para hacerlo perfecto requeriría cálculos trigonométricos avanzados, pero esto funcionará para rotaciones visuales básicas.
-            // Centro del canvas
-            ctx.translate(canvas.width/2, canvas.height/2);
+            // --- CORRECCIÓN DE GUARDADO (Sincronizar con vista previa CSS) ---
+            // 1. Ajustar escala del canvas (200px) respecto al contenedor visual (250px)
+            const ratio = canvas.width / 250;
+            ctx.scale(ratio, ratio);
+
+            // 2. Aplicar transformaciones en el mismo orden que CSS
+            ctx.translate(cropperState.x, cropperState.y); // Traslación
+            
+            // Mover origen al centro de la imagen para rotar/escalar desde el centro
+            ctx.translate(img.naturalWidth / 2, img.naturalHeight / 2);
+            
             ctx.scale(cropperState.scale, cropperState.scale);
-            ctx.translate(cropperState.x, cropperState.y);
+            ctx.rotate(cropperState.rotation * Math.PI / 180); // Rotación (Faltaba antes)
+            
             ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
 
-            saveChanges(canvas.toDataURL('image/jpeg'));
+            const croppedAvatar = canvas.toDataURL('image/jpeg');
+            document.getElementById('edit-profile-avatar-preview').src = croppedAvatar; // Feedback visual inmediato
+            saveChanges(croppedAvatar);
         } else {
             saveChanges(null);
         }
@@ -365,16 +487,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaContent = `<video src="${post.image}" class="post-video" controls></video>`;
             } else {
                 const imgUrl = post.image || 'https://via.placeholder.com/400x200?text=Blog+Leoshi';
-                mediaContent = `<img src="${imgUrl}" alt="${post.title}" class="post-img">`;
+                mediaContent = `<img src="${imgUrl}" alt="${post.title}" class="post-img" loading="lazy">`;
             }
             
             const isAuthor = currentUser && post.author === currentUser.name;
+            
+            // Generar HTML de etiquetas
+            const tagsHtml = post.tags ? `<div class="post-tags-list">${post.tags.split(',').map(t => `<span class="post-tag">#${t.trim()}</span>`).join('')}</div>` : '';
 
             article.innerHTML = `
                 ${mediaContent}
                 <div class="post-body">
                     <h2 class="post-title">${post.title}</h2>
-                    <p class="post-meta">Por ${post.author} | ${post.date}</p>
+                    <p class="post-meta">Por ${post.author} | ${post.date} | 👁️ ${post.views || 0}</p>
+                    ${tagsHtml}
                     <div class="post-excerpt">${post.content.substring(0, 100)}...</div>
                     <div class="post-actions">
                         <a href="#" class="read-more" data-index="${index}">Leer más...</a>
@@ -418,26 +544,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Ver nota completa
     function showPostDetail(post) {
+        // Registrar visita (Analytics básico)
+        DB.incrementPostViews(post.id);
+        const updatedPost = DB.getPosts().find(p => p.id === post.id) || post;
+
         const container = document.getElementById('view-post-body');
         const commentsList = document.getElementById('comments-list');
         
         let mediaContent = '';
-        if (post.type === 'video') {
-            mediaContent = `<video src="${post.image}" class="full-post-video" controls autoplay></video>`;
+        if (updatedPost.type === 'video') {
+            mediaContent = `<video src="${updatedPost.image}" class="full-post-video" controls autoplay></video>`;
         } else {
-            mediaContent = `<img src="${post.image || 'https://via.placeholder.com/800x400?text=Blog+Leoshi'}" class="full-post-img">`;
+            mediaContent = `<img src="${updatedPost.image || 'https://via.placeholder.com/800x400?text=Blog+Leoshi'}" class="full-post-img" alt="${updatedPost.title}" loading="lazy">`;
         }
         
         // Renderizar contenido del post
         container.innerHTML = `
             ${mediaContent}
-            <h1 class="full-post-title">${post.title}</h1>
-            <p class="post-meta">Publicado por <b>${post.author}</b> el ${post.date}</p>
-            <div class="full-post-content">${post.content.replace(/\n/g, '<br>')}</div>
+            <h1 class="full-post-title">${updatedPost.title}</h1>
+            <p class="post-meta">Publicado por <b>${updatedPost.author}</b> el ${updatedPost.date} | 👁️ ${updatedPost.views || 0} Vistas</p>
+            <div class="full-post-content">${updatedPost.content.replace(/\n/g, '<br>')}</div>
         `;
 
         // Renderizar comentarios
-        renderComments(post.id);
+        renderComments(updatedPost.id);
 
         // Configurar formulario de comentarios
         const commentForm = document.getElementById('form-comment');
@@ -458,9 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 text: text,
                 date: new Date().toLocaleDateString()
             };
-            DB.saveComment(post.id, newComment);
+            DB.saveComment(updatedPost.id, newComment);
             newForm.reset();
-            renderComments(post.id);
+            renderComments(updatedPost.id);
         });
 
         openModal(modalView);
@@ -471,12 +601,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = document.getElementById('comments-list');
         const comments = DB.getComments(postId);
         const users = DB.getUsers();
+        const currentUser = DB.getSession();
 
-        list.innerHTML = comments.map(c => {
+        list.innerHTML = comments.map((c, index) => {
             // Buscar avatar del autor del comentario
             const authorUser = users.find(u => u.name === c.author);
             const avatarUrl = authorUser && authorUser.avatar ? authorUser.avatar : 'https://via.placeholder.com/32?text=U';
             
+            // Datos de votos
+            const likes = c.likes || [];
+            const dislikes = c.dislikes || [];
+            const userLiked = currentUser && likes.includes(currentUser.name);
+            const userDisliked = currentUser && dislikes.includes(currentUser.name);
+
             return `
                 <div class="comment-item">
                     <img src="${avatarUrl}" class="comment-avatar" alt="${c.author}">
@@ -485,12 +622,29 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="comment-author">${c.author}</span>
                             <span class="comment-text">${c.text}</span>
                         </div>
-                        <span class="comment-date">${c.date}</span>
+                        <div class="comment-actions">
+                            <span>${c.date}</span>
+                            <button class="btn-comment-action ${userLiked ? 'active-like' : ''}" onclick="handleCommentVote(${postId}, ${index}, 'like')">
+                                👍 ${likes.length || ''}
+                            </button>
+                            <button class="btn-comment-action ${userDisliked ? 'active-dislike' : ''}" onclick="handleCommentVote(${postId}, ${index}, 'dislike')">
+                                👎 ${dislikes.length || ''}
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
         }).join('') || '<p style="font-size:0.8rem; color:#999;">Sé el primero en comentar.</p>';
     }
+
+    // Función global para manejar los votos desde el HTML
+    window.handleCommentVote = (postId, index, type) => {
+        const user = DB.getSession();
+        if (!user) return alert('Inicia sesión para votar comentarios.');
+        
+        DB.voteComment(postId, index, type, user.name);
+        renderComments(postId); // Refrescar para ver cambios
+    };
 
     // Crear Nueva Nota
     fabCreate.addEventListener('click', () => openModal(modalCreate));
@@ -499,6 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const title = document.getElementById('post-title').value;
         const content = document.getElementById('post-content').value;
+        const tags = document.getElementById('post-tags').value;
         const fileInput = document.getElementById('post-image-file');
         const user = DB.getSession();
 
@@ -514,7 +669,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 title,
                 content,
                 author: user.name,
+                tags: tags, // Guardar etiquetas SEO
                 date: new Date().toLocaleDateString(),
+                likes: [], // Inicializar likes del post (futuro)
+                dislikes: [],
+                views: 0, // Inicializar contador de vistas
                 image: mediaBase64, // Reutilizamos el campo image para la data
                 type: type // 'image' o 'video'
             };
@@ -542,6 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-post-id').value = post.id;
         document.getElementById('edit-post-title').value = post.title;
         document.getElementById('edit-post-content').value = post.content;
+        document.getElementById('edit-post-tags').value = post.tags || '';
         document.getElementById('edit-post-image-file').value = ''; // Limpiar input file
         openModal(modalEditPost);
     }
@@ -551,6 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const postId = parseInt(document.getElementById('edit-post-id').value);
         const title = document.getElementById('edit-post-title').value;
         const content = document.getElementById('edit-post-content').value;
+        const tags = document.getElementById('edit-post-tags').value;
         const fileInput = document.getElementById('edit-post-image-file');
         
         // Buscar el post original para mantener datos que no cambian (autor, fecha, imagen vieja si no hay nueva)
@@ -562,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...originalPost,
                 title: title,
                 content: content,
+                tags: tags, // Actualizar etiquetas
                 // Si hay nueva imagen/video, úsala. Si no, mantén la anterior.
                 image: mediaBase64 || originalPost.image,
                 type: type || originalPost.type
@@ -586,9 +748,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- BUSCADOR ---
-    searchInput.addEventListener('input', (e) => {
+    // Optimización: Función Debounce para evitar renderizar en cada tecla pulsada
+    const debounce = (fn, delay) => {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn(...args), delay);
+        };
+    };
+
+    searchInput.addEventListener('input', debounce((e) => {
         renderPosts(e.target.value);
-    });
+    }, 300));
 
     // --- CHAT GLOBAL ---
     
@@ -621,9 +792,72 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             document.getElementById('profile-view-name').textContent = user.name;
             document.getElementById('profile-view-avatar').src = user.avatar || 'https://via.placeholder.com/100?text=U';
+            
+            // Renderizar Skills
+            const skillsContainer = document.getElementById('profile-view-skills');
+            if (user.skills) {
+                skillsContainer.innerHTML = user.skills.split(',').map(s => `<span class="skill-tag">${s.trim()}</span>`).join('');
+            } else {
+                skillsContainer.innerHTML = '';
+            }
             openModal(modalUserProfile);
         }
     };
+
+    // Subir Sticker Propio
+    inputUploadSticker.addEventListener('change', function(e) {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                sendChatMessage(null, evt.target.result); // Enviar imagen como mensaje
+            };
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    function sendChatMessage(text, image = null, author = null) {
+        const user = author || DB.getSession(); // Usar autor proporcionado o el de la sesión
+        if (!user) {
+            alert('Inicia sesión para chatear');
+            return;
+        }
+    
+        const msg = {
+            author: user.name,
+            text: text,
+            image: image,
+            date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+        };
+
+        DB.saveChatMessage(msg);
+        renderChatMessages();
+    
+        // El bot solo responde a mensajes de usuarios reales (cuando no se pasa un autor)
+        if (text && !author && typeof handleBotResponse === 'function') {
+            handleBotResponse(text, sendChatMessage);
+        }
+    }
+
+    function renderChatMessages() {
+        const msgs = DB.getChatMessages();
+        const currentUser = DB.getSession();
+        const users = DB.getUsers();
+
+        chatMessagesArea.innerHTML = msgs.map(m => {
+            const isMine = currentUser && m.author === currentUser.name;
+            // Añadir caso especial para el bot
+            const authorUser = (typeof BOT_USER !== 'undefined' && m.author === BOT_USER.name) ? BOT_USER : users.find(u => u.name === m.author);
+            const avatar = authorUser && authorUser.avatar ? authorUser.avatar : 'https://via.placeholder.com/30?text=U';
+            const content = m.image ? `<img src="${m.image}" class="chat-msg-img" alt="Imagen enviada" loading="lazy">` : m.text;
+            
+            return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
+                ${!isMine ? `<img src="${avatar}" class="chat-msg-avatar" onclick="viewUserProfile('${m.author}')" title="Ver perfil"> <b style="font-size:0.7rem">${m.author}</b><br>` : ''}
+                ${content}
+            </div>`;
+        }).join('');
+        
+        chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+    }
 
     btnSendChat.addEventListener('click', () => {
         const text = chatInput.value.trim();
@@ -637,74 +871,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') btnSendChat.click();
     });
 
-    // Subir Sticker Propio
-    inputUploadSticker.addEventListener('change', function(e) {
-        if (this.files && this.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                sendChatMessage(null, evt.target.result); // Enviar imagen como mensaje
-            };
-            reader.readAsDataURL(this.files[0]);
-        }
-    });
-
-    function sendChatMessage(text, image = null) {
-        const user = DB.getSession();
-        if (!user) return alert('Inicia sesión para chatear');
-
-        const msg = {
-            author: user.name,
-            text: text,
-            image: image,
-            date: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-        };
-        DB.saveChatMessage(msg);
-        renderChatMessages();
-    }
-
-    function renderChatMessages() {
-        const msgs = DB.getChatMessages();
-        const currentUser = DB.getSession();
-        const users = DB.getUsers();
-        
-        chatMessagesArea.innerHTML = msgs.map(m => {
-            const isMine = currentUser && m.author === currentUser.name;
-            const authorUser = users.find(u => u.name === m.author);
-            const avatar = authorUser && authorUser.avatar ? authorUser.avatar : 'https://via.placeholder.com/30?text=U';
-            const content = m.image ? `<img src="${m.image}" class="chat-msg-img">` : m.text;
-            
-            return `<div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
-                ${!isMine ? `<img src="${avatar}" class="chat-msg-avatar" onclick="viewUserProfile('${m.author}')" title="Ver perfil"> <b style="font-size:0.7rem">${m.author}</b><br>` : ''}
-                ${content}
-            </div>`;
-        }).join('');
-        
-        chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
-    }
-
-    // --- MODO OSCURO (LUNA/SOL) ---
-    btnThemeToggle.addEventListener('click', () => {
-        document.body.classList.toggle('dark-mode');
-        btnThemeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
-    });
-
     // --- ARRANQUE DE LA PÁGINA ---
     checkSession();
     renderPosts();
 
-    // Efecto de escritura en el título (Mantenido del original)
-    const titulo = document.querySelector('.main-title');
-    if (titulo) {
-        const texto = "Blog de Leoshi";
-        titulo.innerText = '';
-        let i = 0;
-        function escribir() {
-            if (i < texto.length) {
-                titulo.innerHTML += texto.charAt(i);
-                i++;
-                setTimeout(escribir, 100);
-            }
-        }
-        escribir();
-    }
 });

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt'); // Necesario: npm install bcrypt
 const pool = require('../config/db'); // Importamos el pool de conexiones
 
 // Ruta para obtener todos los usuarios
@@ -26,9 +27,8 @@ router.post('/', async (req, res) => {
     }
 
     try {
-        // IMPORTANTE: En una aplicación real, NUNCA guardes la contraseña en texto plano.
-        // Deberías "hashear" la contraseña antes de guardarla con una librería como bcrypt.
-        const hashedPassword = password; // ¡SOLO PARA ESTE EJEMPLO! NO HACER EN PRODUCCIÓN.
+        // Generar un hash seguro de la contraseña (costo 10)
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         const [result] = await pool.query(
             'INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)',
