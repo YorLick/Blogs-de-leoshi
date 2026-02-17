@@ -1,0 +1,9 @@
+# Entorno de desarrollo
+node_modules/
+dist/
+
+# Configuración de entorno
+.env
+
+# Archivos de log
+logs/
